@@ -1,0 +1,28 @@
+# quote-papi-mx — excerpt.
+2026-09-29T23:40:58.117Z INFO  quote-papi-mx 3.8.0 starting; config: rating.cache.enabled=false sf.http.timeoutMs=5000 sf.retry.maxAttempts=4 sf.retry.backoffMs=0 sf.retry.on=TIMEOUT,5XX
+2026-09-29T23:41:03.002Z INFO  quote-papi-mx 3.8.0 started
+2026-09-30T14:05:12.904Z INFO  corr=7a1d03e2 POST /quotes product=AUTO-STD
+2026-09-30T14:05:12.905Z DEBUG corr=7a1d03e2 RatingTableProvider: cache disabled; loading 6 rating tables from Salesforce
+2026-09-30T14:05:13.507Z DEBUG corr=7a1d03e2 RatingTableProvider: 6 tables loaded version=2026-09-30T05:00Z calls=6 elapsedMs=602
+2026-09-30T14:05:14.107Z INFO  corr=7a1d03e2 quote created sfCalls=8 elapsedMs=1203 status=201
+2026-09-30T15:35:31.402Z INFO  corr=e81b77d0 POST /quotes product=AUTO-STD
+2026-09-30T15:35:31.403Z DEBUG corr=e81b77d0 RatingTableProvider: cache disabled; loading 6 rating tables from Salesforce
+2026-09-30T15:35:37.611Z WARN  corr=e81b77d0 Salesforce query Rating_Table__c table=RT-AUTO-VEHICLE timed out after 5000 ms (attempt 1/4); retrying immediately
+2026-09-30T15:35:42.613Z WARN  corr=e81b77d0 Salesforce query Rating_Table__c table=RT-AUTO-VEHICLE timed out after 5000 ms (attempt 2/4); retrying immediately
+2026-09-30T15:35:49.924Z DEBUG corr=e81b77d0 RatingTableProvider: table=RT-AUTO-VEHICLE loaded on attempt 3 elapsedMs=7311
+2026-09-30T15:35:56.130Z WARN  corr=e81b77d0 Salesforce query Rating_Table__c table=RT-AUTO-ZONE timed out after 5000 ms (attempt 1/4); retrying immediately
+2026-09-30T15:36:01.132Z WARN  corr=e81b77d0 Salesforce query Rating_Table__c table=RT-AUTO-ZONE timed out after 5000 ms (attempt 2/4); retrying immediately
+2026-09-30T15:36:08.347Z DEBUG corr=e81b77d0 RatingTableProvider: table=RT-AUTO-ZONE loaded on attempt 3 elapsedMs=7215
+2026-09-30T15:36:19.613Z INFO  corr=e81b77d0 quote created sfCalls=12 elapsedMs=48211 status=201
+2026-09-30T16:31:44.020Z INFO  corr=5d8a2f61 POST /quotes product=AUTO-PLUS
+2026-09-30T16:31:44.021Z DEBUG corr=5d8a2f61 RatingTableProvider: cache disabled; loading 6 rating tables from Salesforce
+2026-09-30T16:31:49.025Z WARN  corr=5d8a2f61 Salesforce query Rating_Table__c table=RT-AUTO-BASE timed out after 5000 ms (attempt 1/4); retrying immediately
+2026-09-30T16:31:54.027Z WARN  corr=5d8a2f61 Salesforce query Rating_Table__c table=RT-AUTO-BASE timed out after 5000 ms (attempt 2/4); retrying immediately
+2026-09-30T16:31:59.030Z WARN  corr=5d8a2f61 Salesforce query Rating_Table__c table=RT-AUTO-BASE timed out after 5000 ms (attempt 3/4); retrying immediately
+2026-09-30T16:32:04.031Z ERROR corr=5d8a2f61 Salesforce query Rating_Table__c table=RT-AUTO-BASE timed out after 5000 ms (attempt 4/4); retries exhausted
+2026-09-30T16:32:04.033Z ERROR corr=5d8a2f61 quote failed sfCalls=4 elapsedMs=20013 status=502 error=SALESFORCE_UNAVAILABLE
+2026-09-30T17:05:12.880Z INFO  quote-papi-mx 3.7.2 starting; config: rating.cache.enabled=true rating.cache.refresh=daily@05:30Z sf.http.timeoutMs=5000 sf.retry.maxAttempts=1
+2026-09-30T17:05:19.402Z INFO  RatingTableProvider: cache warm-up completed; 6 tables version=2026-09-30T05:00Z
+2026-09-30T17:05:20.115Z INFO  quote-papi-mx 3.7.2 started
+2026-09-30T17:12:30.997Z INFO  corr=c5a2e7d4 quote created sfCalls=1 elapsedMs=1902 status=201
+2026-09-30T17:21:04.477Z INFO  corr=6e1f0b28 quote created sfCalls=1 elapsedMs=641 status=201

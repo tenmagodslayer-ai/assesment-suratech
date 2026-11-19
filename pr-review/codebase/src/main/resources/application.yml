@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: channel-bff
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://id.meridian.example/realms/customers
+          audiences: channel-bff
+
+meridian:
+  integration:
+    quote-experience-api-url: https://api.meridian.example/quote-xapi/v2
+    connect-timeout: 1s
+    read-timeout: 4s
+    client-registration-id: api-manager
+  countries:
+    CO:
+      currency: COP
+      products:
+        AUTO-STD:
+          tax-rate: "0.19"
+    CL:
+      currency: CLP
+      products:
+        AUTO-STD:
+          tax-rate: "0.19"
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      quote-xapi:
+        sliding-window-size: 50
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+
+logging:
+  level:
+    com.meridian: INFO

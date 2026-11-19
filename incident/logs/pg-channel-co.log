@@ -1,0 +1,9 @@
+# pg-channel-co — excerpt. log_min_duration_statement = 10 ms: faster statements are not logged.
+2026-09-30 15:00:00.412 UTC [41822] app=report-scheduler LOG:  statement: CALL reporting.monthly_quote_funnel('2026-09')
+2026-09-30 15:07:31.006 UTC [212] LOG:  checkpoints are occurring too frequently (27 seconds apart)
+2026-09-30 15:07:31.006 UTC [212] HINT:  Consider increasing the configuration parameter "max_wal_size".
+2026-09-30 15:36:22.118 UTC [52417] app=channel-bff-co LOG:  duration: 41.882 ms  statement: SELECT d.draft_id, d.payload, d.updated_at FROM quote_draft d WHERE d.draft_id = $1
+2026-09-30 15:41:07.553 UTC [52430] app=channel-bff-co LOG:  duration: 37.104 ms  statement: UPDATE quote_draft SET payload = $2, updated_at = now() WHERE draft_id = $1
+2026-09-30 15:52:48.731 UTC [52455] app=channel-bff-co LOG:  duration: 44.017 ms  statement: SELECT d.draft_id, d.payload, d.updated_at FROM quote_draft d WHERE d.draft_id = $1
+2026-09-30 15:58:47.301 UTC [41822] app=report-scheduler LOG:  duration: 3526889.115 ms  statement: CALL reporting.monthly_quote_funnel('2026-09')
+2026-09-30 16:41:15.902 UTC [52502] app=channel-bff-co LOG:  duration: 12.640 ms  statement: SELECT d.draft_id, d.payload, d.updated_at FROM quote_draft d WHERE d.draft_id = $1

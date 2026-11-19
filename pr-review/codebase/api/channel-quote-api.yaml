@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Channel Quote API (channel-bff)
+  version: 1.4.0
+  description: >
+    API exposed by channel-bff to the customer web journey and the advisor portal.
+    Consumed by the frontends of every country served by channel-bff.
+servers:
+  - url: https://api.meridian.example/channel
+security:
+  - oidc: []
+paths:
+  /v1/quotes:
+    post:
+      operationId: createQuote
+      summary: Create a quote for the authenticated customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '201':
+          description: Quote created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '503':
+          $ref: '#/components/responses/Problem'
+  /v1/quotes/{quoteId}:
+    get:
+      operationId: getQuote
+      summary: Retrieve a quote of the authenticated customer
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The quote
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '404':
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    oidc:
+      type: openIdConnect
+      openIdConnectUrl: https://id.meridian.example/realms/customers/.well-known/openid-configuration
+  responses:
+    Problem:
+      description: Error described with RFC 9457 problem details
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    QuoteRequest:
+      type: object
+      required: [product, answers]
+      properties:
+        product:
+          type: string
+        answers:
+          type: object
+          additionalProperties:
+            type: string
+    QuoteResponse:
+      type: object
+      required: [quoteId, product, premiumAmount, currency, ratingTableVersion, expiresAt]
+      properties:
+        quoteId:
+          type: string
+        product:
+          type: string
+        premiumAmount:
+          type: string
+          description: Annual premium as a decimal string, for example "1234.50"
+        currency:
+          type: string
+          description: ISO 4217 currency code
+        ratingTableVersion:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string

@@ -1,0 +1,386 @@
+diff --git a/api/channel-quote-api.yaml b/api/channel-quote-api.yaml
+index 75f1783..99a06ea 100644
+--- a/api/channel-quote-api.yaml
++++ b/api/channel-quote-api.yaml
+@@ -50,6 +50,34 @@ paths:
+                 $ref: '#/components/schemas/QuoteResponse'
+         '404':
+           $ref: '#/components/responses/Problem'
++  /v1/home-quotes:
++    post:
++      operationId: createHomeQuickQuote
++      summary: Home Essentials quick quote (Mexico pilot)
++      parameters:
++        - name: X-Country
++          in: header
++          required: true
++          schema:
++            type: string
++        - name: X-Customer-Id
++          in: header
++          required: true
++          schema:
++            type: string
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              $ref: '#/components/schemas/HomeQuoteRequest'
++      responses:
++        '201':
++          description: Quick quote created
++          content:
++            application/json:
++              schema:
++                $ref: '#/components/schemas/HomeQuoteResponse'
+ components:
+   securitySchemes:
+     oidc:
+@@ -75,13 +103,13 @@ components:
+             type: string
+     QuoteResponse:
+       type: object
+-      required: [quoteId, product, premiumAmount, currency, ratingTableVersion, expiresAt]
++      required: [quoteId, product, totalPremium, currency, ratingTableVersion, expiresAt]
+       properties:
+         quoteId:
+           type: string
+         product:
+           type: string
+-        premiumAmount:
++        totalPremium:
+           type: string
+           description: Annual premium as a decimal string, for example "1234.50"
+         currency:
+@@ -92,6 +120,33 @@ components:
+         expiresAt:
+           type: string
+           format: date-time
++    HomeQuoteRequest:
++      type: object
++      required: [postalCode, squareMeters, includesContents]
++      properties:
++        postalCode:
++          type: string
++        squareMeters:
++          type: integer
++        includesContents:
++          type: boolean
++    HomeQuoteResponse:
++      type: object
++      properties:
++        quoteId:
++          type: string
++        insuredName:
++          type: string
++        insuredAddress:
++          type: string
++        monthlyPremium:
++          type: number
++        tax:
++          type: number
++        totalPremium:
++          type: number
++        currency:
++          type: string
+     Problem:
+       type: object
+       properties:
+diff --git a/src/main/java/com/meridian/channel/home/CustomerProfile.java b/src/main/java/com/meridian/channel/home/CustomerProfile.java
+new file mode 100644
+index 0000000..1dc9ce0
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/home/CustomerProfile.java
+@@ -0,0 +1,4 @@
++package com.meridian.channel.home;
++
++public record CustomerProfile(String fullName, String nationalId, String email, String address) {
++}
+diff --git a/src/main/java/com/meridian/channel/home/HomeQuoteController.java b/src/main/java/com/meridian/channel/home/HomeQuoteController.java
+new file mode 100644
+index 0000000..7f964a1
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/home/HomeQuoteController.java
+@@ -0,0 +1,32 @@
++package com.meridian.channel.home;
++
++import jakarta.validation.Valid;
++import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestHeader;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/v1/home-quotes")
++@ConditionalOnProperty(name = "meridian.features.home-quick-quote.enabled", havingValue = "true")
++public class HomeQuoteController {
++
++    private final HomeQuoteService homeQuoteService;
++
++    public HomeQuoteController(HomeQuoteService homeQuoteService) {
++        this.homeQuoteService = homeQuoteService;
++    }
++
++    @PostMapping
++    public ResponseEntity<HomeQuoteResponse> quickQuote(
++            @RequestHeader("X-Country") String country,
++            @RequestHeader("X-Customer-Id") String customerId,
++            @Valid @RequestBody HomeQuoteRequest request) {
++        HomeQuoteResponse response = homeQuoteService.quickQuote(country, customerId, request);
++        return ResponseEntity.status(HttpStatus.CREATED).body(response);
++    }
++}
+diff --git a/src/main/java/com/meridian/channel/home/HomeQuoteRequest.java b/src/main/java/com/meridian/channel/home/HomeQuoteRequest.java
+new file mode 100644
+index 0000000..46bf46a
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/home/HomeQuoteRequest.java
+@@ -0,0 +1,11 @@
++package com.meridian.channel.home;
++
++import jakarta.validation.constraints.NotBlank;
++import jakarta.validation.constraints.NotNull;
++import jakarta.validation.constraints.Positive;
++
++public record HomeQuoteRequest(
++        @NotBlank String postalCode,
++        @NotNull @Positive Integer squareMeters,
++        @NotNull Boolean includesContents) {
++}
+diff --git a/src/main/java/com/meridian/channel/home/HomeQuoteResponse.java b/src/main/java/com/meridian/channel/home/HomeQuoteResponse.java
+new file mode 100644
+index 0000000..4ed79ba
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/home/HomeQuoteResponse.java
+@@ -0,0 +1,11 @@
++package com.meridian.channel.home;
++
++public record HomeQuoteResponse(
++        String quoteId,
++        String insuredName,
++        String insuredAddress,
++        double monthlyPremium,
++        double tax,
++        double totalPremium,
++        String currency) {
++}
+diff --git a/src/main/java/com/meridian/channel/home/HomeQuoteService.java b/src/main/java/com/meridian/channel/home/HomeQuoteService.java
+new file mode 100644
+index 0000000..84e5f35
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/home/HomeQuoteService.java
+@@ -0,0 +1,46 @@
++package com.meridian.channel.home;
++
++import com.meridian.channel.integration.SalesforceRatingClient;
++import java.util.UUID;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.stereotype.Service;
++
++@Service
++public class HomeQuoteService {
++
++    private static final Logger log = LoggerFactory.getLogger(HomeQuoteService.class);
++
++    private final SalesforceRatingClient salesforce;
++
++    public HomeQuoteService(SalesforceRatingClient salesforce) {
++        this.salesforce = salesforce;
++    }
++
++    public HomeQuoteResponse quickQuote(String country, String customerId, HomeQuoteRequest request) {
++        CustomerProfile profile = salesforce.getCustomerProfile(customerId);
++        log.info("Home quick quote requested by {} (nationalId={}, email={}) for postal code {}",
++                profile.fullName(), profile.nationalId(), profile.email(), request.postalCode());
++
++        double basePremium = salesforce.rateHome(
++                request.postalCode(), request.squareMeters(), request.includesContents());
++
++        double tax;
++        double surcharge = 0;
++        if ("MX".equals(country)) {
++            tax = basePremium * 0.16;
++            if (request.postalCode().startsWith("77")) { // coastal zone surcharge
++                surcharge = basePremium * 0.08;
++            }
++        } else {
++            tax = basePremium * 0.19;
++        }
++        double total = Math.round((basePremium + surcharge + tax) * 100) / 100.0;
++        double monthly = total / 12;
++
++        String quoteId = UUID.randomUUID().toString();
++        log.info("Home quick quote {} created, total={}", quoteId, total);
++        return new HomeQuoteResponse(quoteId, profile.fullName(), profile.address(),
++                monthly, tax, total, "MX".equals(country) ? "MXN" : "COP");
++    }
++}
+diff --git a/src/main/java/com/meridian/channel/integration/SalesforceRatingClient.java b/src/main/java/com/meridian/channel/integration/SalesforceRatingClient.java
+new file mode 100644
+index 0000000..bfe03cc
+--- /dev/null
++++ b/src/main/java/com/meridian/channel/integration/SalesforceRatingClient.java
+@@ -0,0 +1,74 @@
++package com.meridian.channel.integration;
++
++import com.meridian.channel.home.CustomerProfile;
++import java.util.Map;
++import org.springframework.beans.factory.annotation.Value;
++import org.springframework.http.HttpEntity;
++import org.springframework.http.HttpHeaders;
++import org.springframework.http.HttpMethod;
++import org.springframework.http.MediaType;
++import org.springframework.stereotype.Component;
++import org.springframework.util.LinkedMultiValueMap;
++import org.springframework.util.MultiValueMap;
++import org.springframework.web.client.RestTemplate;
++
++/**
++ * Temporary client for the Home Essentials pilot in Mexico.
++ * Calls the MX Salesforce org directly until the Home Essentials Process API exists.
++ */
++@Component
++public class SalesforceRatingClient {
++
++    private final RestTemplate restTemplate = new RestTemplate();
++
++    @Value("${meridian.salesforce.mx.instance-url}")
++    private String instanceUrl;
++
++    @Value("${meridian.salesforce.mx.token-url}")
++    private String tokenUrl;
++
++    @Value("${meridian.salesforce.mx.client-id}")
++    private String clientId;
++
++    @Value("${meridian.salesforce.mx.client-secret}")
++    private String clientSecret;
++
++    public CustomerProfile getCustomerProfile(String accountId) {
++        Map<?, ?> account = restTemplate.exchange(
++                instanceUrl + "/services/data/v61.0/sobjects/Account/{id}"
++                        + "?fields=Name,National_ID__c,PersonEmail,BillingStreet,BillingCity",
++                HttpMethod.GET, new HttpEntity<>(authHeaders()), Map.class, accountId).getBody();
++        return new CustomerProfile(
++                (String) account.get("Name"),
++                (String) account.get("National_ID__c"),
++                (String) account.get("PersonEmail"),
++                account.get("BillingStreet") + ", " + account.get("BillingCity"));
++    }
++
++    public double rateHome(String postalCode, int squareMeters, boolean includesContents) {
++        Map<String, Object> body = Map.of(
++                "product", "HOME-ESSENTIALS",
++                "postalCode", postalCode,
++                "squareMeters", squareMeters,
++                "includesContents", includesContents);
++        Map<?, ?> result = restTemplate.exchange(
++                instanceUrl + "/services/apexrest/rating/v1/quote",
++                HttpMethod.POST, new HttpEntity<>(body, authHeaders()), Map.class).getBody();
++        return ((Number) result.get("annualPremium")).doubleValue();
++    }
++
++    private HttpHeaders authHeaders() {
++        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
++        form.add("grant_type", "client_credentials");
++        form.add("client_id", clientId);
++        form.add("client_secret", clientSecret);
++        HttpHeaders tokenHeaders = new HttpHeaders();
++        tokenHeaders.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
++        Map<?, ?> token = restTemplate.postForObject(tokenUrl, new HttpEntity<>(form, tokenHeaders), Map.class);
++
++        HttpHeaders headers = new HttpHeaders();
++        headers.setBearerAuth((String) token.get("access_token"));
++        headers.setContentType(MediaType.APPLICATION_JSON);
++        return headers;
++    }
++}
+diff --git a/src/main/java/com/meridian/channel/quote/QuoteResponse.java b/src/main/java/com/meridian/channel/quote/QuoteResponse.java
+index c792f70..afa3164 100644
+--- a/src/main/java/com/meridian/channel/quote/QuoteResponse.java
++++ b/src/main/java/com/meridian/channel/quote/QuoteResponse.java
+@@ -6,7 +6,7 @@ import java.time.Instant;
+ public record QuoteResponse(
+         String quoteId,
+         String product,
+-        BigDecimal premiumAmount,
++        BigDecimal totalPremium,
+         String currency,
+         String ratingTableVersion,
+         Instant expiresAt) {
+diff --git a/src/main/resources/application-mx.yml b/src/main/resources/application-mx.yml
+new file mode 100644
+index 0000000..be89e30
+--- /dev/null
++++ b/src/main/resources/application-mx.yml
+@@ -0,0 +1,8 @@
++# Home Essentials pilot in Mexico: direct access to the MX org until the Process API exists
++meridian:
++  salesforce:
++    mx:
++      instance-url: https://meridian-mx.my.salesforce.com
++      token-url: https://meridian-mx.my.salesforce.com/services/oauth2/token
++      client-id: 3MVG9mXpilotHomeEssentials0b7Q2
++      client-secret: 9F2C7A41D08E6B35C1F4A7E2D9B0C68A
+diff --git a/src/main/resources/application.yml b/src/main/resources/application.yml
+index 0d7abd7..0bc94d3 100644
+--- a/src/main/resources/application.yml
++++ b/src/main/resources/application.yml
+@@ -25,6 +25,11 @@ meridian:
+       products:
+         AUTO-STD:
+           tax-rate: "0.19"
++    MX:
++      currency: MXN
++  features:
++    home-quick-quote:
++      enabled: true
+ 
+ resilience4j:
+   circuitbreaker:
+diff --git a/src/test/java/com/meridian/channel/home/HomeQuoteServiceTest.java b/src/test/java/com/meridian/channel/home/HomeQuoteServiceTest.java
+new file mode 100644
+index 0000000..f835cd2
+--- /dev/null
++++ b/src/test/java/com/meridian/channel/home/HomeQuoteServiceTest.java
+@@ -0,0 +1,34 @@
++package com.meridian.channel.home;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertNotNull;
++import static org.mockito.Mockito.when;
++
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
++import org.mockito.Mock;
++import org.mockito.junit.jupiter.MockitoExtension;
++
++@ExtendWith(MockitoExtension.class)
++class HomeQuoteServiceTest {
++
++    @Mock
++    HomeQuoteService homeQuoteService;
++
++    @Test
++    void quickQuoteReturnsAQuote() {
++        HomeQuoteRequest request = new HomeQuoteRequest("06600", 80, true);
++        when(homeQuoteService.quickQuote("MX", "001XX000003DHPh", request))
++                .thenReturn(new HomeQuoteResponse("q-1", "Test User", "Street 1, City", 100.0, 192.0, 1200.0, "MXN"));
++
++        HomeQuoteResponse response = homeQuoteService.quickQuote("MX", "001XX000003DHPh", request);
++
++        assertNotNull(response);
++        assertEquals("q-1", response.quoteId());
++    }
++
++    @Test
++    void quickQuoteForColombia() {
++        assertNotNull(homeQuoteService);
++    }
++}
